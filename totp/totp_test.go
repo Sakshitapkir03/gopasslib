@@ -374,33 +374,7 @@ func TestNew(t *testing.T) {
 			},
 			wantErr: ErrInvalid,
 		},
-		{
-			name: "subsecond period",
-			params: Params{
-				Issuer:      "gopasslib",
-				AccountName: "user@example.com",
-				Period:      500 * time.Millisecond,
-			},
-			wantErr: ErrInvalid,
-		},
-		{
-			name: "negative period",
-			params: Params{
-				Issuer:      "gopasslib",
-				AccountName: "user@example.com",
-				Period:      -30 * time.Second,
-			},
-			wantErr: ErrInvalid,
-		},
-		{
-			name: "fractional second period",
-			params: Params{
-				Issuer:      "gopasslib",
-				AccountName: "user@example.com",
-				Period:      1500 * time.Millisecond,
-			},
-			wantErr: ErrInvalid,
-		},
+
 		{
 			name: "valid SHA256 algorithm",
 			params: Params{
@@ -422,9 +396,9 @@ func TestNew(t *testing.T) {
 		{
 			name: "valid custom period",
 			params: Params{
-				Issuer:      "gopasslib",
-				AccountName: "user@example.com",
-				Period:      60 * time.Second,
+				Issuer:        "gopasslib",
+				AccountName:   "user@example.com",
+				PeriodSeconds: 60,
 			},
 			wantErr: nil,
 		},
@@ -456,6 +430,59 @@ func TestNewToVerify(t *testing.T) {
 	}
 }
 
+func TestNewPeriodSeconds(t *testing.T) {
+	for _, test := range []struct {
+		name        string
+		period      uint32
+		wantSeconds uint32
+	}{
+		{
+			name:        "default period",
+			period:      0,
+			wantSeconds: 30,
+		},
+		{
+			name:        "custom period",
+			period:      60,
+			wantSeconds: 60,
+		},
+		{
+			name:        "maximum uint32 period",
+			period:      ^uint32(0),
+			wantSeconds: ^uint32(0),
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			otp, err := New(Params{
+				Issuer:        "gopasslib",
+				AccountName:   "user@example.com",
+				PeriodSeconds: test.period,
+			})
+			if err != nil {
+				t.Fatalf("New() failed: %s", err)
+			}
+
+			wantPeriod := time.Duration(test.wantSeconds) * time.Second
+			if otp.period != wantPeriod {
+				t.Errorf("New() period = %s, want %s", otp.period, wantPeriod)
+			}
+
+			encoded, err := otp.Marshal()
+			if err != nil {
+				t.Fatalf("Marshal() failed: %s", err)
+			}
+
+			decoded, err := Unmarshal(encoded)
+			if err != nil {
+				t.Fatalf("Unmarshal() failed: %s", err)
+			}
+
+			if decoded.period != wantPeriod {
+				t.Errorf("Unmarshal() period = %s, want %s", decoded.period, wantPeriod)
+			}
+		})
+	}
+}
 func TestMarshal(t *testing.T) {
 	want := &pb.TOTP{
 		AccountName:     "user@example.com",
